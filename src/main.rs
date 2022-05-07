@@ -2,7 +2,7 @@ use argh::FromArgs;
 use chacha20poly1305::aead::NewAead;
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    path::PathBuf,
+    path::PathBuf, fs::OpenOptions, io::Write,
 };
 
 /// mosh-server and mosh-client interconnector based on UDP and a static key file
@@ -112,7 +112,9 @@ fn main() -> anyhow::Result<()> {
         Cmd::Keygen(Keygen { file }) => {
             let mut buf = [0u8; 32];
             getrandom::getrandom(&mut buf[..])?;
-            std::fs::write(file, buf)?;
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut f = OpenOptions::new().mode(0o600).write(true).create(true).open(file)?;
+            f.write_all(&buf)?;
         }
     }
     Ok(())

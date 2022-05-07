@@ -130,14 +130,16 @@ impl Client {
                         if self.ping_mode {
                             eprintln!("Unexpected reply: ServerStarted");
                         } else {
-                            let udp = match Client::start_mosh_client(key) {
-                                Ok(x) => x,
-                                Err(e) => {
-                                    eprintln!("Error starting mosh-client: {}", e);
-                                    std::process::exit(3)
-                                }
-                            };
-                            self.mosh = Some(udp);
+                            if self.mosh.is_none() {
+                                let udp = match Client::start_mosh_client(key) {
+                                    Ok(x) => x,
+                                    Err(e) => {
+                                        eprintln!("Error starting mosh-client: {}", e);
+                                        std::process::exit(3)
+                                    }
+                                };
+                                self.mosh = Some(udp);
+                            }
                         }
                     }
                     Message::StartServer { .. } => {
