@@ -1,5 +1,5 @@
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, UdpSocket},
     os::unix::prelude::AsRawFd,
 };
@@ -102,7 +102,7 @@ impl Client {
                     Err(_e) => {
                         if let Some(ref mosh) = self.mosh {
                             if let Some(reply_addr) = mosh.reply_address {
-                                if mosh.socket.send_to(pkt,reply_addr).is_err() {
+                                if mosh.socket.send_to(pkt, reply_addr).is_err() {
                                     eprintln!("Mosh client socket closed");
                                     return;
                                 }
@@ -140,7 +140,7 @@ impl Client {
                             self.mosh = Some(udp);
                         }
                     }
-                    Message::StartServer { sessid } => {
+                    Message::StartServer { .. } => {
                         eprintln!("Stray incoming message: StartServer");
                     }
                     Message::Failed { msg } => {
@@ -156,7 +156,7 @@ impl Client {
             {
                 if let Some(ref mut mosh) = self.mosh {
                     let mut clearmosh = false;
-                    let (pkt,addr) = match mosh.socket.recv_from(&mut buf) {
+                    let (pkt, addr) = match mosh.socket.recv_from(&mut buf) {
                         Ok((sz, addr)) => (&buf[..sz], addr),
                         Err(_) => {
                             clearmosh = true;
@@ -206,20 +206,18 @@ impl Client {
         cmd.arg("127.0.0.1").arg(format!("{}", port));
         cmd.env("MOSH_KEY", key);
         let mut child = cmd.spawn()?;
-        std::thread::spawn(move || {
-            match child.wait() {
-                Ok(c) => {
-                    if c.success() {
-                        std::process::exit(0);
-                    } else {
-                        eprint!("Unsuccessful exit status of mosh-client: {}", c);
-                        std::process::exit(4);
-                    }
+        std::thread::spawn(move || match child.wait() {
+            Ok(c) => {
+                if c.success() {
+                    std::process::exit(0);
+                } else {
+                    eprint!("Unsuccessful exit status of mosh-client: {}", c);
+                    std::process::exit(4);
                 }
-                Err(_e) => {
-                    eprintln!("Failed waiting for mosh-client child process");
-                    std::process::exit(3);
-                }
+            }
+            Err(_e) => {
+                eprintln!("Failed waiting for mosh-client child process");
+                std::process::exit(3);
             }
         });
         Ok(MoshClientState {

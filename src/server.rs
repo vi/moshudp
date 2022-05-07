@@ -1,5 +1,5 @@
 use std::{
-    ffi::{OsStr, OsString},
+    ffi::OsStr,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket},
     os::unix::prelude::AsRawFd,
 };
@@ -80,7 +80,6 @@ impl Server {
                 if self.past_nonces.len() > 1000_000 {
                     self.past_nonces.clear();
                 }
-
 
                 let replymsg: Option<Message> = match msg {
                     Message::Ping => Some(Message::Pong),
@@ -177,7 +176,11 @@ impl Server {
                 let socket =
                     UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)))?;
                 socket.connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))?;
-                return Ok(MoshState{key,socket,sessid});
+                return Ok(MoshState {
+                    key,
+                    socket,
+                    sessid,
+                });
             }
         }
         anyhow::bail!("Failed to find MOSH CONNECT in the output")
