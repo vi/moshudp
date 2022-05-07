@@ -2,6 +2,11 @@
 name = "moshudp"
 version = "0.1.0"
 edition = "2021"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/vi/moshudp"
+description = "Alternative simplistic UDP-based session establisher for mosh-client and mosh-server."
+keywords = ["mosh", "ssh", "cli"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
