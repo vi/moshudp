@@ -92,9 +92,9 @@ impl Client {
                     Ok((sz, fromaddr)) => (&buf[..sz], fromaddr),
                     Err(_) => continue,
                 };
-                if fromaddr != self.destination_address {
-                    continue;
-                }
+
+                // seems like client-side address sensitivy only breaks things
+                let _ = fromaddr;
 
                 let msg = match crate::protocol::decrypt(&pkt, &self.crypto, &mut self.past_nonces)
                 {
@@ -217,7 +217,7 @@ impl Client {
                 if c.success() {
                     std::process::exit(0);
                 } else {
-                    eprint!("Unsuccessful exit status of mosh-client: {}", c);
+                    eprintln!("Unsuccessful exit status of mosh-client: {}", c);
                     std::process::exit(4);
                 }
             }

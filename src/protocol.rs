@@ -12,7 +12,7 @@ pub struct Datagram {
     data: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize,Debug)]
 pub enum Message {
     Ping,
     Pong,

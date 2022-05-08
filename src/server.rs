@@ -67,6 +67,8 @@ impl Server {
 
                 if Some(clientaddr) == self.recent_client_addr {
                     self.update_address_cooldown = Instant::now() + UPDATE_ADDRESS_COOLDOWN;
+                } else {
+
                 }
 
                 let msg: Option<Message> =
@@ -86,7 +88,7 @@ impl Server {
                                 }
                                 continue;
                             } else {
-                                if self.update_address_cooldown >= Instant::now() {
+                                if  Instant::now() >= self.update_address_cooldown  {
                                     None
                                 } else {
                                     continue;
