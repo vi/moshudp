@@ -1,7 +1,7 @@
 use fxhash::FxHashSet;
 use serde::{Deserialize, Serialize};
 
-pub const MAGIC: u32 = 0x55644d6f;
+pub const MAGIC: u32 = 0x5564_4d6f;
 
 pub type Nonce = [u8; 24];
 

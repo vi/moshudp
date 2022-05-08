@@ -126,7 +126,7 @@ fn handle_addr(addr: String, ipv4: bool, ipv6: bool) -> Result<SocketAddr, anyho
         SocketAddr::V4(_) => !ipv6,
         SocketAddr::V6(_) => !ipv4,
     });
-    if addrs.len() < 1 {
+    if addrs.is_empty() {
         anyhow::bail!("No usable socket addresses obtained");
     }
     if addrs.len() > 1 {

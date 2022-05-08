@@ -77,11 +77,9 @@ impl Client {
                         if self.resend_counter > 0 {
                             self.resend_counter -= 1;
                             self.send_request(false);
-                        } else {
-                            if self.mosh.is_none() {
-                                eprintln!("Failed to receive usable reply from server");
-                                std::process::exit(2);
-                            }
+                        } else if self.mosh.is_none() {
+                            eprintln!("Failed to receive usable reply from server");
+                            std::process::exit(2);
                         }
                     }
                 }
@@ -96,7 +94,7 @@ impl Client {
                 // seems like client-side address sensitivy only breaks things
                 let _ = fromaddr;
 
-                let msg = match crate::protocol::decrypt(&pkt, &self.crypto, &mut self.past_nonces)
+                let msg = match crate::protocol::decrypt(pkt, &self.crypto, &mut self.past_nonces)
                 {
                     Ok(x) => x,
                     Err(_e) => {
@@ -129,17 +127,15 @@ impl Client {
                     Message::ServerStarted { key } => {
                         if self.ping_mode {
                             eprintln!("Unexpected reply: ServerStarted");
-                        } else {
-                            if self.mosh.is_none() {
-                                let udp = match Client::start_mosh_client(key) {
-                                    Ok(x) => x,
-                                    Err(e) => {
-                                        eprintln!("Error starting mosh-client: {}", e);
-                                        std::process::exit(3)
-                                    }
-                                };
-                                self.mosh = Some(udp);
-                            }
+                        } else if self.mosh.is_none() {
+                            let udp = match Client::start_mosh_client(key) {
+                                Ok(x) => x,
+                                Err(e) => {
+                                    eprintln!("Error starting mosh-client: {}", e);
+                                    std::process::exit(3)
+                                }
+                            };
+                            self.mosh = Some(udp);
                         }
                     }
                     Message::StartServer { .. } => {
@@ -207,7 +203,7 @@ impl Client {
         let udp = UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)))?;
         let port = udp.local_addr()?.port();
         let mosh_client =
-            std::env::var_os("MOSH_CLIENT").unwrap_or(OsStr::from_bytes(b"mosh-client").to_owned());
+            std::env::var_os("MOSH_CLIENT").unwrap_or_else(||OsStr::from_bytes(b"mosh-client").to_owned());
         let mut cmd = std::process::Command::new(mosh_client);
         cmd.arg("127.0.0.1").arg(format!("{}", port));
         cmd.env("MOSH_KEY", key);

@@ -72,7 +72,7 @@ impl Server {
                 }
 
                 let msg: Option<Message> =
-                    match crate::protocol::decrypt(&pkt, &self.crypto, &mut self.past_nonces) {
+                    match crate::protocol::decrypt(pkt, &self.crypto, &mut self.past_nonces) {
                         Ok(x) => Some(x),
                         Err(_e) => {
                             //eprintln!("{}", _e);
@@ -87,16 +87,14 @@ impl Server {
                                     self.mosh = None
                                 }
                                 continue;
+                            } else if  Instant::now() >= self.update_address_cooldown  {
+                                None
                             } else {
-                                if  Instant::now() >= self.update_address_cooldown  {
-                                    None
-                                } else {
-                                    continue;
-                                }
+                                continue;
                             }
                         }
                     };
-                if self.past_nonces.len() > 1000_000 {
+                if self.past_nonces.len() > 1_000_000 {
                     self.past_nonces.clear();
                 }
 
@@ -181,7 +179,7 @@ impl Server {
 
     fn start_mosh_server(sessid: u64) -> anyhow::Result<MoshState> {
         let mosh_server =
-            std::env::var_os("MOSH_SERVER").unwrap_or(OsStr::from_bytes(b"mosh-server").to_owned());
+            std::env::var_os("MOSH_SERVER").unwrap_or_else(||OsStr::from_bytes(b"mosh-server").to_owned());
         let mut cmd = std::process::Command::new(mosh_server);
         cmd.arg("new").arg("-i").arg("127.0.0.1").arg("-p").arg("0");
         let out = cmd.output()?;
@@ -204,11 +202,7 @@ impl Server {
                 let socket =
                     UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)))?;
                 socket.connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))?;
-                return Ok(MoshState {
-                    key,
-                    socket,
-                    sessid,
-                });
+                return Ok(MoshState { socket, key, sessid });
             }
         }
         anyhow::bail!("Failed to find MOSH CONNECT in the output")
