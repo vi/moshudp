@@ -19,6 +19,9 @@ pub enum Message {
     StartServer { sessid: u64 },
     ServerStarted { key: String },
     Failed { msg: String },
+    /// Sent by server to client when client's external address change, to confirm the change
+    /// Client replies with the same message back
+    UpdateAddress,
 }
 
 use bincode::Options;

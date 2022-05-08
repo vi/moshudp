@@ -59,7 +59,7 @@ impl Client {
             self.client_socket.as_raw_fd(),
             PollFlags::POLLIN,
         ));
-        self.send_request();
+        self.send_request(false);
         loop {
             polls.truncate(1);
             if let Some(ref mosh) = self.mosh {
@@ -76,7 +76,7 @@ impl Client {
                     if n == 0 {
                         if self.resend_counter > 0 {
                             self.resend_counter -= 1;
-                            self.send_request();
+                            self.send_request(false);
                         } else {
                             if self.mosh.is_none() {
                                 eprintln!("Failed to receive usable reply from server");
@@ -149,6 +149,9 @@ impl Client {
                         eprintln!("Received error from server: {}", msg);
                         std::process::exit(1);
                     }
+                    Message::UpdateAddress => {
+                        self.send_request(true);
+                    }
                 };
 
                 // end of client socket msg code
@@ -184,14 +187,15 @@ impl Client {
         }
     }
 
-    fn send_request(&self) {
-        let msg = if self.ping_mode {
-            Message::Ping
-        } else {
-            Message::StartServer {
+    fn send_request(&self, update_address: bool) {
+        let msg = match (update_address, self.ping_mode) {
+            (true, _) => Message::UpdateAddress,
+            (false, true) => Message::Ping,
+            (false, false) => Message::StartServer {
                 sessid: self.sessid,
-            }
+            },
         };
+        
         let pkt = crate::protocol::encrypt(&msg, &self.crypto).unwrap();
         if let Err(e) = self.client_socket.send_to(&pkt, self.destination_address) {
             eprintln!("sendto: {}", e);

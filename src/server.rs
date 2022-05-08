@@ -2,6 +2,7 @@ use std::{
     ffi::OsStr,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4, UdpSocket},
     os::unix::prelude::AsRawFd,
+    time::{Duration, Instant},
 };
 
 use chacha20poly1305::XChaCha20Poly1305;
@@ -11,12 +12,15 @@ use nix::poll::{poll, PollFd, PollFlags};
 use crate::protocol::{Message, Nonce};
 use std::os::unix::ffi::OsStrExt;
 
+const UPDATE_ADDRESS_COOLDOWN: Duration = Duration::from_millis(333);
+
 pub struct Server {
     server_socket: UdpSocket,
     crypto: XChaCha20Poly1305,
     mosh: Option<MoshState>,
     past_nonces: FxHashSet<Nonce>,
     recent_client_addr: Option<SocketAddr>,
+    update_address_cooldown: Instant,
 }
 
 struct MoshState {
@@ -33,6 +37,7 @@ impl Server {
             mosh: None,
             past_nonces: FxHashSet::default(),
             recent_client_addr: None,
+            update_address_cooldown: Instant::now(),
         })
     }
 
@@ -60,63 +65,84 @@ impl Server {
                     Err(_) => continue,
                 };
 
-                let msg = match crate::protocol::decrypt(&pkt, &self.crypto, &mut self.past_nonces)
-                {
-                    Ok(x) => x,
-                    Err(_e) => {
-                        //eprintln!("{}", _e);
-                        let mut clearmosh = false;
-                        if let Some(ref mosh) = self.mosh {
-                            if mosh.socket.send(pkt).is_err() {
-                                clearmosh = true;
+                if Some(clientaddr) == self.recent_client_addr {
+                    self.update_address_cooldown = Instant::now() + UPDATE_ADDRESS_COOLDOWN;
+                }
+
+                let msg: Option<Message> =
+                    match crate::protocol::decrypt(&pkt, &self.crypto, &mut self.past_nonces) {
+                        Ok(x) => Some(x),
+                        Err(_e) => {
+                            //eprintln!("{}", _e);
+                            if Some(clientaddr) == self.recent_client_addr {
+                                let mut clearmosh = false;
+                                if let Some(ref mosh) = self.mosh {
+                                    if mosh.socket.send(pkt).is_err() {
+                                        clearmosh = true;
+                                    }
+                                }
+                                if clearmosh {
+                                    self.mosh = None
+                                }
+                                continue;
+                            } else {
+                                if self.update_address_cooldown >= Instant::now() {
+                                    None
+                                } else {
+                                    continue;
+                                }
                             }
                         }
-                        if clearmosh {
-                            self.mosh = None
-                        }
-                        continue;
-                    }
-                };
+                    };
                 if self.past_nonces.len() > 1000_000 {
                     self.past_nonces.clear();
                 }
 
-                let replymsg: Option<Message> = match msg {
-                    Message::Ping => Some(Message::Pong),
-                    Message::Pong => None,
-                    Message::ServerStarted { .. } => None,
-                    Message::StartServer { sessid } => {
-                        self.recent_client_addr = Some(clientaddr);
-                        let reply = if let Some(ref mosh) = self.mosh {
-                            if mosh.sessid == sessid {
-                                Some(Message::ServerStarted {
-                                    key: mosh.key.clone(),
-                                })
+                let replymsg: Option<Message> = if let Some(msg) = msg {
+                    match msg {
+                        Message::Ping => Some(Message::Pong),
+                        Message::Pong => None,
+                        Message::ServerStarted { .. } => None,
+                        Message::StartServer { sessid } => {
+                            self.recent_client_addr = Some(clientaddr);
+                            let reply = if let Some(ref mosh) = self.mosh {
+                                if mosh.sessid == sessid {
+                                    Some(Message::ServerStarted {
+                                        key: mosh.key.clone(),
+                                    })
+                                } else {
+                                    None
+                                }
                             } else {
                                 None
+                            };
+                            if reply.is_none() {
+                                match Server::start_mosh_server(sessid) {
+                                    Ok(mosh) => {
+                                        let key = mosh.key.clone();
+                                        self.mosh = Some(mosh);
+                                        Some(Message::ServerStarted { key })
+                                    }
+                                    Err(e) => {
+                                        self.mosh = None;
+                                        Some(Message::Failed {
+                                            msg: format!("{}", e),
+                                        })
+                                    }
+                                }
+                            } else {
+                                reply
                             }
-                        } else {
+                        }
+                        Message::Failed { .. } => None,
+                        Message::UpdateAddress => {
+                            self.recent_client_addr = Some(clientaddr);
                             None
-                        };
-                        if reply.is_none() {
-                            match Server::start_mosh_server(sessid) {
-                                Ok(mosh) => {
-                                    let key = mosh.key.clone();
-                                    self.mosh = Some(mosh);
-                                    Some(Message::ServerStarted { key })
-                                }
-                                Err(e) => {
-                                    self.mosh = None;
-                                    Some(Message::Failed {
-                                        msg: format!("{}", e),
-                                    })
-                                }
-                            }
-                        } else {
-                            reply
                         }
                     }
-                    Message::Failed { .. } => None,
+                } else {
+                    /* Request the client to send back UpdateAddress  */
+                    Some(Message::UpdateAddress)
                 };
 
                 if let Some(replymsg) = replymsg {
