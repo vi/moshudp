@@ -15,7 +15,6 @@ Authentication is based on one static keyfile.
 * No security audit. I tried my best to protect it from replay attacks or being a DoS amplifier, but I'm not a security specialist.
 * No replies at all if key is incorrect - client would just time out.
 * Security model of moshudp assumes that mosh-server is ready to accept arbitrary (i.e. malicious) datagrams from open internet.
-* Roaming (chaning external IP on the go) may fail to work in this version. 
 
 # Installation
 
