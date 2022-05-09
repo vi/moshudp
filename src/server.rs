@@ -87,7 +87,7 @@ impl Server {
                                     self.mosh = None
                                 }
                                 continue;
-                            } else if  Instant::now() >= self.update_address_cooldown  {
+                            } else if  Instant::now() >= self.update_address_cooldown && self.mosh.is_some()  {
                                 None
                             } else {
                                 continue;
