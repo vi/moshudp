@@ -13,6 +13,7 @@ use crate::protocol::{Message, Nonce};
 use std::os::unix::ffi::OsStrExt;
 
 const UPDATE_ADDRESS_COOLDOWN: Duration = Duration::from_millis(333);
+const MOSH_SERVER_TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct Server {
     server_socket: UdpSocket,
@@ -68,7 +69,6 @@ impl Server {
                 if Some(clientaddr) == self.recent_client_addr {
                     self.update_address_cooldown = Instant::now() + UPDATE_ADDRESS_COOLDOWN;
                 } else {
-
                 }
 
                 let msg: Option<Message> =
@@ -87,7 +87,13 @@ impl Server {
                                     self.mosh = None
                                 }
                                 continue;
-                            } else if  Instant::now() >= self.update_address_cooldown && self.mosh.is_some()  {
+                            } else if Instant::now() >= self.update_address_cooldown
+                                && Instant::now()
+                                    < self.update_address_cooldown + MOSH_SERVER_TIMEOUT
+                                && self.mosh.is_some()
+                            {
+                                self.update_address_cooldown =
+                                    Instant::now() + UPDATE_ADDRESS_COOLDOWN;
                                 None
                             } else {
                                 continue;
@@ -178,8 +184,8 @@ impl Server {
     }
 
     fn start_mosh_server(sessid: u64) -> anyhow::Result<MoshState> {
-        let mosh_server =
-            std::env::var_os("MOSH_SERVER").unwrap_or_else(||OsStr::from_bytes(b"mosh-server").to_owned());
+        let mosh_server = std::env::var_os("MOSH_SERVER")
+            .unwrap_or_else(|| OsStr::from_bytes(b"mosh-server").to_owned());
         let mut cmd = std::process::Command::new(mosh_server);
         cmd.arg("new").arg("-i").arg("127.0.0.1").arg("-p").arg("0");
         let out = cmd.output()?;
@@ -202,7 +208,11 @@ impl Server {
                 let socket =
                     UdpSocket::bind(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)))?;
                 socket.connect(SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port)))?;
-                return Ok(MoshState { socket, key, sessid });
+                return Ok(MoshState {
+                    socket,
+                    key,
+                    sessid,
+                });
             }
         }
         anyhow::bail!("Failed to find MOSH CONNECT in the output")
